@@ -1,0 +1,14 @@
+{
+  "name": "Neon Snake",
+  "short_name": "NeonSnake",
+  "description": "네온 스타일 모바일 스네이크 게임",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a14",
+  "theme_color": "#0a0a14",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
