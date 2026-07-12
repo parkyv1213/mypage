@@ -8,15 +8,20 @@
   const overlayText = document.getElementById("overlay-text");
   const startBtn = document.getElementById("start-btn");
   const pauseBtn = document.getElementById("pause-btn");
+  const soundBtn = document.getElementById("sound-btn");
+  const installBtn = document.getElementById("install-btn");
   const speedLabel = document.getElementById("speed-label");
 
   const GRID = 20;
   const CELL = canvas.width / GRID;
   const BEST_KEY = "neon-snake-best";
+  const SOUND_KEY = "neon-snake-sound";
 
   const State = { READY: "ready", PLAYING: "playing", PAUSED: "paused", OVER: "over" };
 
   let snake, dir, nextDir, food, score, best, tickInterval, tickTimer, state, lastTickAt;
+  let soundOn = localStorage.getItem(SOUND_KEY) !== "0";
+  let audioCtx = null;
 
   function reset() {
     snake = [
@@ -65,7 +70,7 @@
     if (state === State.READY) {
       overlay.classList.remove("hidden");
       overlayTitle.textContent = "PRESS START";
-      overlayText.textContent = "방향키 또는 화면을 스와이프 하세요";
+      overlayText.textContent = "화면을 스와이프하거나 D-Pad를 사용하세요";
       startBtn.textContent = "START";
       pauseBtn.disabled = true;
       pauseBtn.textContent = "PAUSE";
@@ -113,6 +118,8 @@
   function gameOver() {
     cancelAnimationFrame(tickTimer);
     setState(State.OVER);
+    vibrate([60, 40, 120]);
+    beep(120, 0.18, "sawtooth");
     flash();
   }
 
@@ -146,6 +153,8 @@
       updateScore();
       updateSpeed();
       placeFood();
+      vibrate(20);
+      beep(880 + Math.min(score, 20) * 12, 0.06, "triangle");
     } else {
       snake.pop();
     }
@@ -242,15 +251,48 @@
     );
   }
 
+  function vibrate(pattern) {
+    if (!navigator.vibrate) return;
+    try { navigator.vibrate(pattern); } catch (_) {}
+  }
+
+  function ensureAudio() {
+    if (audioCtx) return audioCtx;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    audioCtx = new Ctx();
+    return audioCtx;
+  }
+
+  function beep(freq, dur, type = "sine") {
+    if (!soundOn) return;
+    const ac = ensureAudio();
+    if (!ac) return;
+    if (ac.state === "suspended") ac.resume();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.15, ac.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+    osc.connect(gain).connect(ac.destination);
+    osc.start();
+    osc.stop(ac.currentTime + dur + 0.02);
+  }
+
+  function setSound(on) {
+    soundOn = on;
+    localStorage.setItem(SOUND_KEY, on ? "1" : "0");
+    soundBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    soundBtn.textContent = on ? "🔊" : "🔇";
+  }
+
   const KEY_DIRS = {
-    ArrowUp: { x: 0, y: -1 },
-    ArrowDown: { x: 0, y: 1 },
-    ArrowLeft: { x: -1, y: 0 },
-    ArrowRight: { x: 1, y: 0 },
-    w: { x: 0, y: -1 },
-    s: { x: 0, y: 1 },
-    a: { x: -1, y: 0 },
-    d: { x: 1, y: 0 },
+    ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 },
+    ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 },
+    w: { x: 0, y: -1 }, s: { x: 0, y: 1 },
+    a: { x: -1, y: 0 }, d: { x: 1, y: 0 },
   };
 
   function setDir(d) {
@@ -269,49 +311,68 @@
       return;
     }
     const d = KEY_DIRS[e.key];
-    if (d) {
-      e.preventDefault();
-      setDir(d);
-    }
+    if (d) { e.preventDefault(); setDir(d); }
   });
 
+  const DIR_MAP = {
+    up: { x: 0, y: -1 }, down: { x: 0, y: 1 },
+    left: { x: -1, y: 0 }, right: { x: 1, y: 0 },
+  };
+
   document.querySelectorAll(".pad").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const map = {
-        up: { x: 0, y: -1 },
-        down: { x: 0, y: 1 },
-        left: { x: -1, y: 0 },
-        right: { x: 1, y: 0 },
-      };
-      setDir(map[btn.dataset.dir]);
-    });
+    const trigger = (e) => {
+      e.preventDefault();
+      ensureAudio();
+      setDir(DIR_MAP[btn.dataset.dir]);
+      btn.classList.add("pressed");
+      vibrate(10);
+      setTimeout(() => btn.classList.remove("pressed"), 90);
+    };
+    btn.addEventListener("touchstart", trigger, { passive: false });
+    btn.addEventListener("mousedown", trigger);
   });
 
   let touchStart = null;
-  canvas.addEventListener(
+  const swipeTarget = document.querySelector(".stage");
+  swipeTarget.addEventListener(
     "touchstart",
     (e) => {
+      ensureAudio();
       const t = e.changedTouches[0];
-      touchStart = { x: t.clientX, y: t.clientY };
+      touchStart = { x: t.clientX, y: t.clientY, t: performance.now() };
     },
     { passive: true }
   );
-  canvas.addEventListener(
-    "touchend",
+  swipeTarget.addEventListener(
+    "touchmove",
     (e) => {
       if (!touchStart) return;
       const t = e.changedTouches[0];
       const dx = t.clientX - touchStart.x;
       const dy = t.clientY - touchStart.y;
-      if (Math.abs(dx) < 16 && Math.abs(dy) < 16) return;
-      if (Math.abs(dx) > Math.abs(dy)) setDir({ x: Math.sign(dx), y: 0 });
+      const ax = Math.abs(dx);
+      const ay = Math.abs(dy);
+      if (ax < 18 && ay < 18) return;
+      if (ax > ay) setDir({ x: Math.sign(dx), y: 0 });
       else setDir({ x: 0, y: Math.sign(dy) });
-      touchStart = null;
+      touchStart = { x: t.clientX, y: t.clientY, t: performance.now() };
     },
     { passive: true }
   );
+  swipeTarget.addEventListener(
+    "touchend",
+    () => { touchStart = null; },
+    { passive: true }
+  );
+
+  swipeTarget.addEventListener("dblclick", (e) => {
+    e.preventDefault();
+    if (state === State.PLAYING) pause();
+    else if (state === State.PAUSED) resume();
+  });
 
   startBtn.addEventListener("click", () => {
+    ensureAudio();
     if (state === State.PAUSED) resume();
     else start();
   });
@@ -321,7 +382,37 @@
     else if (state === State.PAUSED) resume();
   });
 
+  soundBtn.addEventListener("click", () => {
+    setSound(!soundOn);
+    if (soundOn) beep(660, 0.08, "triangle");
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && state === State.PLAYING) pause();
+  });
+
+  let deferredInstall = null;
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredInstall = e;
+    installBtn.hidden = false;
+  });
+  installBtn.addEventListener("click", async () => {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    await deferredInstall.userChoice;
+    deferredInstall = null;
+    installBtn.hidden = true;
+  });
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+
   best = Number(localStorage.getItem(BEST_KEY) || 0);
+  setSound(soundOn);
   reset();
   setState(State.READY);
   draw();

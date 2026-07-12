@@ -2,8 +2,15 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#0f0f1e" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a14" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Neon Snake" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
   <title>Neon Snake</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -29,8 +36,9 @@
       <div id="overlay" class="overlay">
         <div class="panel">
           <h2 id="overlay-title">PRESS START</h2>
-          <p id="overlay-text">방향키 또는 화면을 스와이프 하세요</p>
+          <p id="overlay-text">화면을 스와이프하거나 D-Pad를 사용하세요</p>
           <button id="start-btn" class="btn">START</button>
+          <button id="install-btn" class="ghost install" hidden>홈 화면에 설치</button>
         </div>
       </div>
     </main>
@@ -46,7 +54,10 @@
 
     <footer class="foot">
       <span id="speed-label">SPEED 1</span>
-      <button id="pause-btn" class="ghost" disabled>PAUSE</button>
+      <div class="foot-actions">
+        <button id="sound-btn" class="ghost" aria-pressed="true" aria-label="사운드 토글">🔊</button>
+        <button id="pause-btn" class="ghost" disabled>PAUSE</button>
+      </div>
     </footer>
   </div>
 
